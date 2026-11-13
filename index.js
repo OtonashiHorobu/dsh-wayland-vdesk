@@ -211,6 +211,64 @@ export function apply(ctx, config = {}) {
   })
 
   ctx.tools.register({
+    name: 'vdesk_browser',
+    description:
+      'Open Firefox inside this conversation\'s virtual desktop with remote debugging enabled, so the `mcp__firefox__*` '
+      + 'tools can attach to it. The browser window stays inside the virtual desktop. Call this before using the Firefox MCP '
+      + 'tools; attaching takes one Firefox at a time, so a second browser in another conversation is refused.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        url: { type: 'string', description: 'Page to open when the browser starts. Defaults to about:blank.' },
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['pid', 'marionettePort', 'url'],
+        properties: {
+          pid: { type: 'integer' },
+          marionettePort: { type: 'integer' },
+          url: { type: 'string' },
+          profile: { type: 'string' },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: `firefox is running inside the virtual desktop (pid ${value.pid}, Marionette ${value.marionettePort}).\n`
+          + 'The Firefox MCP tools can attach now; take a screenshot to confirm the window opened.',
+      }],
+    },
+    async execute(args, exec) {
+      const { client, session } = await desktopOf(exec)
+      const port = 2828
+      const profileDir = `${process.env.HOME}/.mozilla/firefox/vdesk-ff`
+      const url = String(args?.url ?? 'about:blank')
+      // A dedicated profile keeps the user's own Firefox (and its lock) untouched.
+      await client.run(session.id, {
+        command: 'sh',
+        args: ['-c', `[ -d "${profileDir}" ] || firefox -CreateProfile "vdesk-ff ${profileDir}"`],
+        wait: true,
+        timeoutMs: 30_000,
+      })
+      const app = await client.run(session.id, {
+        command: 'firefox',
+        args: ['-P', 'vdesk-ff', '--no-remote', '--marionette', '--remote-debugging-port=9222', '--new-window', url],
+      })
+      const probe = await client.run(session.id, {
+        command: 'sh',
+        args: ['-c', `for i in $(seq 1 80); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && exit 0; sleep 0.25; done; exit 1`],
+        wait: true,
+        timeoutMs: 25_000,
+      })
+      if (probe.exitCode !== 0) throw new Error(`firefox started (pid ${app.pid}) but Marionette port ${port} never opened`)
+      return { pid: app.pid, marionettePort: port, url, profile: profileDir }
+    },
+  })
+
+  ctx.tools.register({
     name: 'vdesk_shot',
     description:
       'Take a screenshot of this conversation\'s virtual desktop and return it as an image you can look at. '

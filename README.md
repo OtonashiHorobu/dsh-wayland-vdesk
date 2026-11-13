@@ -84,9 +84,22 @@ vdesk_run({command: "gtk4-demo"})               → 里面跑一个 GUI 程序
 vdesk_shot()                                    → 截图，图片直接进上下文
 vdesk_input({actions:[{type:"click",x:120,y:80}]}) → 点一下
 vdesk_input({actions:[{type:"type",text:"你好"}]})  → 打字
+vdesk_browser({url:"http://localhost:5173"})      → 桌面里起一个可调试的 Firefox
 ```
 
 完整工具参数见 [docs/tools.md](docs/tools.md)。
+
+### 网页调试（Firefox MCP）
+
+把 Firefox 起在虚拟桌面里，agent 就能用 `mcp__firefox__*` 工具读 console/network、
+执行 JS、按无障碍树点击：
+
+```text
+vdesk_browser({url: "http://localhost:5173"})   → 启动带 Marionette 的 Firefox
+```
+
+配套的 preset 覆盖在 `examples/firefox-preset`，安装后 standard preset 会多一个 attach 模式的
+Mozilla firefox-devtools-mcp。细节见 [docs/firefox-mcp.md](docs/firefox-mcp.md)。
 
 ### 你（WebUI）
 

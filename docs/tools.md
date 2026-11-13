@@ -136,6 +136,26 @@
 
 ---
 
+## `vdesk_browser`
+
+在虚拟桌面里启动一个**可被自动化驱动**的 Firefox，供 `mcp__firefox__*` 工具 attach。
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `url` | string | 启动时打开的页面，默认 `about:blank` |
+
+返回：
+
+```json
+{ "pid": 577017, "marionettePort": 2828, "url": "http://localhost:5173", "profile": "~/.mozilla/firefox/vdesk-ff" }
+```
+
+它会自动建独立 profile（`vdesk-ff`）并以 `--no-remote --marionette --remote-debugging-port=9222` 启动，
+然后等 `127.0.0.1:2828` 可连才返回。**一个 Firefox 同时只能有一个自动化会话**，
+另一个对话再调用会被拒绝。详见 [firefox-mcp.md](firefox-mcp.md)。
+
+---
+
 ## `vdesk_resize`
 
 ```json
