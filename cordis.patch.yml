@@ -1,0 +1,10 @@
+# dsh-vdesk bundle patch: one row, both halves.
+#
+# The package root `index.js` is the Host half (tools + one authenticated Fetch
+# route); `client.js` is the browser half declared by `dsh.client` in the
+# manifest. A later layer can tune or disable this row:
+#   - id: dsh-vdesk
+#     disabled: true
+- insert:
+    - id: dsh-vdesk
+      name: dsh-vdesk

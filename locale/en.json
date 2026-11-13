@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Virtual desktop",
+    "description": "Gives every conversation its own off-screen Wayland desktop (sway + Xwayland) with its own size, audio device and live view. Agents run GUI programs, take PNG screenshots, click and type inside it; the Web UI shows it live with sound that starts muted.",
+    "detail": "docs/DETAIL.md"
+  }
+}

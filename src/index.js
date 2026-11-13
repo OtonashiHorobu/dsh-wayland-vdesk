@@ -1,0 +1,5 @@
+export { VDeskManager } from './manager.js'
+export { VDeskSession } from './session.js'
+export { Hub } from './hub.js'
+export { HubClient, ensureDaemon, readState, ping } from './client.js'
+export { caps, describeCaps, checkRequirements, runtimeRoot, DEFAULT_PORT } from './config.js'

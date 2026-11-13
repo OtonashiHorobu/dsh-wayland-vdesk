@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "虚拟桌面",
+    "description": "为每个对话提供一个离屏 Wayland 桌面（sway + Xwayland），分辨率、音频设备、实时画面都独立。agent 可以在里面运行图形程序、截图、点击和输入；Web UI 里能实时查看并操作，声音默认静音。",
+    "detail": "docs/DETAIL.md"
+  }
+}
