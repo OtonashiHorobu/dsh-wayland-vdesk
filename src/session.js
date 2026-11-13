@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises'
 import { join } from 'node:path'
 import { AudioBridge } from './audio.js'
 import { caps, parentRuntimeDir } from './config.js'
-import { execFileP, freePort, killTree, sleep, spawnLogged, tcpOpen, waitUntil } from './util.js'
+import { execFileP, freePort, killTree, pidAlive, sleep, spawnLogged, tcpOpen, waitUntil } from './util.js'
 
 const BUTTONS = { left: 1, middle: 2, right: 3 }
 const SCROLL = { up: 4, down: 5, left: 6, right: 7 }
@@ -326,6 +326,41 @@ export class VDeskSession {
     }
     this.touch()
     return { path: out, width: this.width, height: this.height }
+  }
+
+  /** Programs this desktop launched, with liveness. */
+  listApps() {
+    return this.apps.map((app, index) => ({
+      index: index + 1,
+      pid: app.pid,
+      command: app.command,
+      log: app.log ?? null,
+      startedAt: app.startedAt,
+      alive: pidAlive(app.pid),
+    }))
+  }
+
+  /** Stop one program this desktop launched (whole process group). */
+  async killApp(pid) {
+    const app = this.apps.find((entry) => entry.pid === pid)
+    if (!app) throw new Error(`no program with pid ${pid} in this desktop`)
+    killTree(pid, 'SIGTERM')
+    await sleep(300)
+    if (pidAlive(pid)) {
+      killTree(pid, 'SIGKILL')
+      await sleep(150)
+    }
+    this.touch()
+    return { pid, alive: pidAlive(pid) }
+  }
+
+  /** Close one window through the compositor (the program keeps running). */
+  async closeWindow(conId) {
+    this.assertReady()
+    const res = await execFileP(caps.swaymsg, ['--', `[con_id=${Math.round(conId)}] kill`], { env: this.toolEnv() })
+    if (res.code !== 0) throw new Error(`close window failed: ${res.stderr.trim()}`)
+    this.touch()
+    return { id: Math.round(conId) }
   }
 
   async windows() {

@@ -2,6 +2,7 @@ const params = new URLSearchParams(location.search)
 const TOKEN = params.get('token') ?? ''
 const WANTED_KEY = params.get('conv') ?? ''
 const EMBEDDED = params.get('embed') === '1'
+const FROM_OVERVIEW = params.get('from') === 'overview'
 
 const els = {
   select: document.getElementById('session-select'),
@@ -17,6 +18,10 @@ const els = {
   fit: document.getElementById('fit-btn'),
   refresh: document.getElementById('refresh-btn'),
   full: document.getElementById('full-btn'),
+  back: document.getElementById('back-btn'),
+  appsBtn: document.getElementById('apps-btn'),
+  stop: document.getElementById('stop-btn'),
+  popover: document.getElementById('popover'),
 }
 
 const state = {
@@ -299,6 +304,117 @@ function toggleAudio() {
   els.volume.disabled = false
 }
 
+
+function overviewUrl() {
+  return `/overview?${new URLSearchParams({ token: TOKEN }).toString()}`
+}
+
+async function loadApps() {
+  if (!state.current) return { apps: [], windows: [] }
+  return await api(`/api/sessions/${encodeURIComponent(state.current.id)}/apps`)
+}
+
+function popoverRow({ text, sub, onKill, title }) {
+  const row = document.createElement('div')
+  row.className = 'popover-row'
+  const label = document.createElement('span')
+  label.className = 'grow'
+  label.textContent = text
+  if (title) label.title = title
+  if (sub) {
+    const small = document.createElement('span')
+    small.className = 'sub'
+    small.textContent = ` ${sub}`
+    label.append(small)
+  }
+  const kill = document.createElement('button')
+  kill.type = 'button'
+  kill.className = 'kill'
+  kill.textContent = '✕'
+  kill.title = '结束'
+  kill.addEventListener('click', async () => {
+    kill.disabled = true
+    try {
+      await onKill()
+      await refreshPopover()
+    } catch {
+      kill.disabled = false
+    }
+  })
+  row.append(label, kill)
+  return row
+}
+
+async function refreshPopover() {
+  if (els.popover.classList.contains('hidden')) return
+  const out = await loadApps().catch(() => ({ apps: [], windows: [] }))
+  els.popover.innerHTML = ''
+
+  const programs = document.createElement('div')
+  programs.className = 'popover-section'
+  programs.textContent = '程序'
+  els.popover.append(programs)
+  if (!out.apps.length) {
+    const row = document.createElement('div')
+    row.className = 'popover-row'
+    row.innerHTML = '<span class="grow sub">还没有启动过程序</span>'
+    els.popover.append(row)
+  }
+  for (const app of out.apps) {
+    els.popover.append(popoverRow({
+      text: `${app.alive ? '●' : '○'} ${app.command}`,
+      sub: `pid ${app.pid}`,
+      title: app.command,
+      onKill: () => api(`/api/sessions/${encodeURIComponent(state.current.id)}/kill`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pid: app.pid }),
+      }),
+    }))
+  }
+
+  const windows = document.createElement('div')
+  windows.className = 'popover-section'
+  windows.textContent = '窗口'
+  els.popover.append(windows)
+  if (!out.windows?.length) {
+    const row = document.createElement('div')
+    row.className = 'popover-row'
+    row.innerHTML = '<span class="grow sub">没有打开的窗口</span>'
+    els.popover.append(row)
+  }
+  for (const win of out.windows ?? []) {
+    els.popover.append(popoverRow({
+      text: `${win.title || win.appId || '窗口'}`,
+      sub: `${win.rect?.width ?? 0}×${win.rect?.height ?? 0}`,
+      title: `${win.appId ?? ''} ${win.title ?? ''}`,
+      onKill: () => api(`/api/sessions/${encodeURIComponent(state.current.id)}/close-window`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: win.id }),
+      }),
+    }))
+  }
+}
+
+function togglePopover() {
+  const hidden = els.popover.classList.toggle('hidden')
+  if (!hidden) refreshPopover()
+}
+
+async function stopDesktop() {
+  if (!state.current) return
+  if (!window.confirm('停止这个虚拟桌面？里面的程序都会退出。')) return
+  await api(`/api/sessions/${encodeURIComponent(state.current.id)}`, { method: 'DELETE' })
+  teardown()
+  state.current = null
+  els.meta.textContent = ''
+  showHint('虚拟桌面已停止。')
+  setConn('已停止')
+  const next = await loadSessions()
+  if (next) await connect(next)
+}
+
 /* --------------------------------------------------------------- wiring */
 
 els.audio.addEventListener('click', toggleAudio)
@@ -324,6 +440,25 @@ els.refresh.addEventListener('click', () => {
   if (state.current) connect(state.current)
 })
 
+els.back.addEventListener('click', () => {
+  location.href = overviewUrl()
+})
+
+els.appsBtn.addEventListener('click', (event) => {
+  event.stopPropagation()
+  togglePopover()
+})
+
+els.stop.addEventListener('click', () => {
+  stopDesktop().catch(() => setConn('停止失败', 'error'))
+})
+
+document.addEventListener('click', (event) => {
+  if (els.popover.classList.contains('hidden')) return
+  if (els.popover.contains(event.target) || els.appsBtn.contains(event.target)) return
+  els.popover.classList.add('hidden')
+})
+
 els.fit.addEventListener('click', () => {
   if (state.rfb) state.rfb.scaleViewport = !state.rfb.scaleViewport
 })
@@ -335,6 +470,7 @@ els.full.addEventListener('click', () => {
 
 async function boot() {
   if (EMBEDDED) document.body.classList.add('embed')
+  if (FROM_OVERVIEW) els.back.style.display = ''
   if (!TOKEN) {
     showHint('缺少访问令牌：请从 DSH 面板或 CLI 打印的 URL 打开。')
     return

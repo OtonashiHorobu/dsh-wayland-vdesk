@@ -30,10 +30,12 @@ export class VDeskManager {
     if (inflight) return inflight
 
     const promise = (async () => {
+      const raw = String(key)
+      const fallback = raw.startsWith('session-') ? `对话 ${raw.slice(8, 16)}` : raw.slice(0, 24)
       const session = new VDeskSession({
         id: this.idFor(key),
         key,
-        label: label ?? key,
+        label: label ?? fallback,
         width: width ?? DEFAULT_WIDTH,
         height: height ?? DEFAULT_HEIGHT,
         fps,

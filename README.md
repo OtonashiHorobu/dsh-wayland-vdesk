@@ -84,22 +84,25 @@ vdesk_run({command: "gtk4-demo"})               → 里面跑一个 GUI 程序
 vdesk_shot()                                    → 截图，图片直接进上下文
 vdesk_input({actions:[{type:"click",x:120,y:80}]}) → 点一下
 vdesk_input({actions:[{type:"type",text:"你好"}]})  → 打字
-vdesk_browser({url:"http://localhost:5173"})      → 桌面里起一个可调试的 Firefox
+vdesk_apps()                                    → 桌面里有哪些程序/窗口
+vdesk_kill({pid: 1234})                         → 结束某个程序
 ```
 
 完整工具参数见 [docs/tools.md](docs/tools.md)。
 
-### 网页调试（Firefox MCP）
+### 左侧「虚拟桌面」总览
 
-把 Firefox 起在虚拟桌面里，agent 就能用 `mcp__firefox__*` 工具读 console/network、
-执行 JS、按无障碍树点击：
+侧边栏点 **虚拟桌面** 打开全屏总览：每个对话一张卡片，带实时缩略图、尺寸、程序数，
+可以直接打开、在窗口打开或停止。同一页还有「全部停止」。
 
-```text
-vdesk_browser({url: "http://localhost:5173"})   → 启动带 Marionette 的 Firefox
-```
+### 停止桌面 / 管理里面的程序
 
-配套的 preset 覆盖在 `examples/firefox-preset`，安装后 standard preset 会多一个 attach 模式的
-Mozilla firefox-devtools-mcp。细节见 [docs/firefox-mcp.md](docs/firefox-mcp.md)。
+桌面页右上角：
+
+- **程序** —— 列出这个桌面启动过的程序和它们的窗口，点 ✕ 结束某个程序或关掉某个窗口；
+- **停止** —— 结束整个桌面（里面的程序全部退出）。
+
+agent 侧对应 `vdesk_apps` 与 `vdesk_kill`。
 
 ### 你（WebUI）
 

@@ -123,6 +123,18 @@ export class HubClient {
     return (await this.request('POST', `/api/sessions/${encodeURIComponent(id)}/windows`, {})).windows
   }
 
+  async apps(id) {
+    return await this.request('GET', `/api/sessions/${encodeURIComponent(id)}/apps`)
+  }
+
+  async killApp(id, pid) {
+    return await this.request('POST', `/api/sessions/${encodeURIComponent(id)}/kill`, { pid })
+  }
+
+  async closeWindow(id, windowId) {
+    return await this.request('POST', `/api/sessions/${encodeURIComponent(id)}/close-window`, { id: windowId })
+  }
+
   async env(id) {
     return (await this.request('GET', `/api/sessions/${encodeURIComponent(id)}/env`)).env
   }

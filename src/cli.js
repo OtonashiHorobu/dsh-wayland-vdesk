@@ -151,7 +151,13 @@ async function main() {
   if (command === 'create') {
     const key = flags.conv ?? positional[1] ?? 'default'
     const size = flags.size ? parseSize(flags.size) : undefined
-    const res = await client.ensureSession({ key, label: flags.label, fps: flags.fps ? Number(flags.fps) : undefined, ...(size ?? {}) })
+    const fallbackLabel = String(key).startsWith('session-') ? `对话 ${String(key).slice(8, 16)}` : String(key).slice(0, 24)
+    const res = await client.ensureSession({
+      key,
+      label: flags.label ?? fallbackLabel,
+      fps: flags.fps ? Number(flags.fps) : undefined,
+      ...(size ?? {}),
+    })
     if (size && (res.session.width !== size.width || res.session.height !== size.height)) {
       await client.resize(res.session.id, size.width, size.height)
     }

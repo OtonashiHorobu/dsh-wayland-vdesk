@@ -122,6 +122,9 @@ export class Hub {
       if (url.pathname === '/' || url.pathname === '/index.html') {
         return await this.serveFile(res, webRoot, 'index.html')
       }
+      if (url.pathname === '/overview' || url.pathname === '/overview.html') {
+        return await this.serveFile(res, webRoot, 'overview.html')
+      }
       return await this.serveFile(res, webRoot, url.pathname)
     } catch (error) {
       return sendJson(res, 500, { error: String(error.message ?? error) })
@@ -166,6 +169,24 @@ export class Hub {
       if (action === 'env' && req.method === 'GET') {
         return sendJson(res, 200, { env: session.envForApps(), session: session.toJSON() })
       }
+      if (action === 'apps' && req.method === 'GET') {
+        return sendJson(res, 200, {
+          apps: session.listApps(),
+          windows: await session.windows(),
+          session: session.toJSON(),
+        })
+      }
+      if (action === 'frame' && req.method === 'GET') {
+        const width = Number(url.searchParams.get('w') ?? 0) || undefined
+        const shot = await session.shot({ maxWidth: width && width < session.width ? width : undefined })
+        const buf = await fsp.readFile(shot.path)
+        res.writeHead(200, {
+          'content-type': 'image/png',
+          'content-length': buf.length,
+          'cache-control': 'no-store',
+        })
+        return res.end(buf)
+      }
       if (!action && req.method === 'DELETE') {
         await this.manager.stop(session.id)
         return sendJson(res, 200, { ok: true })
@@ -194,6 +215,16 @@ export class Hub {
           }
           case 'windows': {
             return sendJson(res, 200, { windows: await session.windows() })
+          }
+          case 'kill': {
+            const pid = Number(body.pid)
+            if (!Number.isFinite(pid)) return sendJson(res, 400, { error: 'pid is required' })
+            return sendJson(res, 200, { app: await session.killApp(pid) })
+          }
+          case 'close-window': {
+            const id = Number(body.id ?? body.windowId)
+            if (!Number.isFinite(id)) return sendJson(res, 400, { error: 'id is required' })
+            return sendJson(res, 200, { window: await session.closeWindow(id) })
           }
           case 'stop': {
             await this.manager.stop(session.id)

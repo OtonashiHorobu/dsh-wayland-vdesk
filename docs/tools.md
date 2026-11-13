@@ -136,23 +136,31 @@
 
 ---
 
-## `vdesk_browser`
+## `vdesk_apps`
 
-在虚拟桌面里启动一个**可被自动化驱动**的 Firefox，供 `mcp__firefox__*` 工具 attach。
-
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| `url` | string | 启动时打开的页面，默认 `about:blank` |
-
-返回：
+列出这个桌面启动过的程序和它们的窗口，用来决定结束谁。
 
 ```json
-{ "pid": 577017, "marionettePort": 2828, "url": "http://localhost:5173", "profile": "~/.mozilla/firefox/vdesk-ff" }
+{
+  "apps": [
+    { "pid": 497303, "command": "chromium --app=http://localhost:5173", "alive": true, "log": "…/app-01.log" }
+  ],
+  "windows": [
+    { "id": 4194352, "pid": 497303, "appId": "chromium", "title": "My App", "width": 1200, "height": 740, "focused": true }
+  ]
+}
 ```
 
-它会自动建独立 profile（`vdesk-ff`）并以 `--no-remote --marionette --remote-debugging-port=9222` 启动，
-然后等 `127.0.0.1:2828` 可连才返回。**一个 Firefox 同时只能有一个自动化会话**，
-另一个对话再调用会被拒绝。详见 [firefox-mcp.md](firefox-mcp.md)。
+---
+
+## `vdesk_kill`
+
+结束一个程序（连同进程组）或只关掉一个窗口。`pid` 和 `windowId` 二选一。
+
+```json
+{ "pid": 497303 }        // 程序退出
+{ "windowId": 4194352 }  // 只关窗口，程序继续跑
+```
 
 ---
 

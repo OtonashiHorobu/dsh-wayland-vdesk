@@ -211,76 +211,6 @@ export function apply(ctx, config = {}) {
   })
 
   ctx.tools.register({
-    name: 'vdesk_browser',
-    description:
-      'Open Firefox inside this conversation\'s virtual desktop with remote debugging enabled, so the `mcp__firefox__*` '
-      + 'tools can attach to it. The browser window stays inside the virtual desktop. Call this before using the Firefox MCP '
-      + 'tools; attaching takes one Firefox at a time, so a second browser in another conversation is refused.',
-    parameters: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        url: { type: 'string', description: 'Page to open when the browser starts. Defaults to about:blank.' },
-      },
-    },
-    output: {
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['pid', 'marionettePort', 'url'],
-        properties: {
-          pid: { type: 'integer' },
-          marionettePort: { type: 'integer' },
-          url: { type: 'string' },
-          profile: { type: 'string' },
-          reused: { type: 'boolean' },
-        },
-      },
-      render: (_args, value) => [{
-        type: 'text',
-        text: value.reused
-          ? `a debuggable Firefox is already running inside the virtual desktop (Marionette ${value.marionettePort}); reusing it.`
-          : `firefox is running inside the virtual desktop (pid ${value.pid}, Marionette ${value.marionettePort}).\n`
-            + 'The Firefox MCP tools can attach now; take a screenshot to confirm the window opened.',
-      }],
-    },
-    async execute(args, exec) {
-      const { client, session } = await desktopOf(exec)
-      const port = 2828
-      const profileDir = `${process.env.HOME}/.mozilla/firefox/vdesk-ff`
-      const url = String(args?.url ?? 'about:blank')
-
-      // An attached MCP session owns port 2828; reuse the running browser instead
-      // of fighting over the profile lock.
-      const probePort = `for i in $(seq 1 ${Math.round(20_000 / 250)}); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && exit 0; sleep 0.25; done; exit 1`
-      const already = await client.run(session.id, { command: 'sh', args: ['-c', probePort], wait: true, timeoutMs: 22_000 })
-      if (already.app.exitCode === 0) {
-        return { pid: 0, marionettePort: port, url, profile: profileDir, reused: true }
-      }
-
-      // A dedicated profile keeps the user's own Firefox (and its lock) untouched.
-      await client.run(session.id, {
-        command: 'sh',
-        args: ['-c', `[ -d "${profileDir}" ] || firefox -CreateProfile "vdesk-ff ${profileDir}"`],
-        wait: true,
-        timeoutMs: 30_000,
-      })
-      const { app } = await client.run(session.id, {
-        command: 'firefox',
-        args: ['-P', 'vdesk-ff', '--no-remote', '--marionette', '--remote-debugging-port=9222', '--new-window', url],
-      })
-      const probe = await client.run(session.id, { command: 'sh', args: ['-c', probePort], wait: true, timeoutMs: 22_000 })
-      if (probe.app.exitCode !== 0) {
-        throw new Error(
-          `firefox started (pid ${app.pid}) but Marionette port ${port} never opened; see ${app.log ?? 'the session log'}`,
-        )
-      }
-      return { pid: app.pid, marionettePort: port, url, profile: profileDir }
-
-    },
-  })
-
-  ctx.tools.register({
     name: 'vdesk_shot',
     description:
       'Take a screenshot of this conversation\'s virtual desktop and return it as an image you can look at. '
@@ -451,6 +381,132 @@ export function apply(ctx, config = {}) {
   })
 
   ctx.tools.register({
+    name: 'vdesk_apps',
+    description:
+      'List what is running inside this conversation\'s virtual desktop: the programs it launched (pid, command, whether they are still alive) '
+      + 'and their windows (app id, title, geometry, focus). Use it before vdesk_kill to pick the right pid or window id.',
+    parameters: { type: 'object', additionalProperties: false, properties: {} },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['apps', 'windows'],
+        properties: {
+          apps: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['pid', 'command', 'alive'],
+              properties: {
+                pid: { type: 'integer' },
+                command: { type: 'string' },
+                alive: { type: 'boolean' },
+                log: { type: 'string' },
+              },
+            },
+          },
+          windows: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['title', 'focused'],
+              properties: {
+                id: { type: 'integer' },
+                pid: { type: 'integer' },
+                appId: { type: 'string' },
+                title: { type: 'string' },
+                width: { type: 'integer' },
+                height: { type: 'integer' },
+                focused: { type: 'boolean' },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, value) => {
+        const apps = value.apps.length === 0
+          ? 'no programs were started by this desktop'
+          : value.apps.map((a) => `${a.alive ? '\u25cf' : '\u25cb'} pid ${a.pid}  ${a.command}`).join('\n')
+        const windows = value.windows.length === 0
+          ? 'no windows'
+          : value.windows.map((w) => `${w.focused ? '*' : ' '} [${w.id ?? '?'}] ${w.appId ?? '-'} "${w.title}"`).join('\n')
+        return [{ type: 'text', text: `programs:\n${apps}\n\nwindows:\n${windows}` }]
+      },
+    },
+    async execute(_args, exec) {
+      const { client, session } = await desktopOf(exec)
+      const out = await client.apps(session.id)
+      return {
+        apps: out.apps.map((a) => ({
+          pid: a.pid,
+          command: a.command,
+          alive: Boolean(a.alive),
+          ...(a.log ? { log: a.log } : {}),
+        })),
+        windows: (out.windows ?? []).map((w) => ({
+          ...(w.id === undefined ? {} : { id: w.id }),
+          ...(w.pid === undefined ? {} : { pid: w.pid }),
+          ...(w.appId === null || w.appId === undefined ? {} : { appId: String(w.appId) }),
+          title: String(w.title ?? ''),
+          width: w.rect?.width ?? 0,
+          height: w.rect?.height ?? 0,
+          focused: Boolean(w.focused),
+        })),
+      }
+    },
+  })
+
+  ctx.tools.register({
+    name: 'vdesk_kill',
+    description:
+      'Stop one program or close one window inside this conversation\'s virtual desktop. '
+      + 'Pass pid to terminate a program and its process group, or windowId to close just that window '
+      + '(the program keeps running). Exactly one of the two is required.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        pid: { type: 'integer', description: 'Program pid from vdesk_apps.' },
+        windowId: { type: 'integer', description: 'Window id from vdesk_windows or vdesk_apps.' },
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['kind', 'id'],
+        properties: {
+          kind: { type: 'string' },
+          id: { type: 'integer' },
+          alive: { type: 'boolean' },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: value.kind === 'program'
+          ? `program ${value.id} ${value.alive ? 'is still running' : 'stopped'}`
+          : `window ${value.id} closed`,
+      }],
+    },
+    async execute(args, exec) {
+      const { client, session } = await desktopOf(exec)
+      const pid = Number(args?.pid)
+      const windowId = Number(args?.windowId)
+      const hasPid = Number.isFinite(pid) && pid > 0
+      const hasWindow = Number.isFinite(windowId) && windowId > 0
+      if (hasPid === hasWindow) throw new Error('pass exactly one of pid or windowId')
+      if (hasPid) {
+        const out = await client.killApp(session.id, pid)
+        return { kind: 'program', id: pid, alive: Boolean(out.app?.alive) }
+      }
+      await client.closeWindow(session.id, windowId)
+      return { kind: 'window', id: windowId }
+    },
+  })
+
+  ctx.tools.register({
     name: 'vdesk_resize',
     description: 'Change this conversation\'s virtual desktop resolution. Existing windows are re-laid out by the compositor.',
     parameters: {
@@ -527,6 +583,20 @@ export function apply(ctx, config = {}) {
         })
       } catch (error) {
         return Response.json({ ok: false, running: false, error: String(error?.message ?? error) }, { status: 200 })
+      }
+    },
+  })
+
+  ctx.connection.fetch.register({
+    path: '/api/vdesk/hub',
+    methods: ['GET'],
+    requestBody: 'buffered',
+    fetch: async () => {
+      try {
+        const client = await hub()
+        return Response.json({ ok: true, hub: { port: client.state.port, token: client.state.token } })
+      } catch (error) {
+        return Response.json({ ok: false, error: String(error?.message ?? error) })
       }
     },
   })
