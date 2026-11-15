@@ -314,9 +314,14 @@ async function main() {
       console.log(`stopped ${list.length} desktop(s)`)
       return
     }
-    const res = await target(client, positional[1])
-    await client.stop(res.session.id)
-    console.log(`stopped ${res.session.id}`)
+    const key = positional[1]
+    if (!key) throw new Error('usage: dsh-vdesk kill KEY | --all')
+    // Never create a desktop just to stop it: resolve the existing one first.
+    const sessions = await client.sessions()
+    const found = sessions.find((session) => session.id === key || session.key === key)
+    if (!found) throw new Error(`no such desktop: ${key}`)
+    await client.stop(found.id)
+    console.log(`stopped ${found.id}`)
     return
   }
 
