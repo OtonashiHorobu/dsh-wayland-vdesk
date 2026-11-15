@@ -79,6 +79,7 @@ sudo apt install sway wayvnc grim wtype wl-clipboard novnc
 | `grim` | 截图 |
 | `wtype` | 虚拟键盘注入 |
 | `wl-clipboard` | 粘贴式输入，处理中文和长文本（可选） |
+| `wlrctl` | 相对指针移动，鼠标视角/游戏需要（可选） |
 | noVNC | 浏览器端 RFB 客户端（任意 `core/rfb.js` 目录，`DSH_VDESK_NOVNC` 可覆盖） |
 
 `ffmpeg` 用于缩放截图，`xdotool` 可选。Node ≥ 22。

@@ -310,6 +310,7 @@ function capsDescription() {
     grim: Boolean(caps.grim),
     wtype: Boolean(caps.wtype),
     xdotool: Boolean(caps.xdotool),
+    wlrctl: Boolean(caps.wlrctl),
     wlCopy: Boolean(caps.wlCopy),
     pactl: Boolean(caps.pactl),
     parec: Boolean(caps.parec),

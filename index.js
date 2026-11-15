@@ -283,9 +283,11 @@ export function apply(ctx, config = {}) {
             additionalProperties: true,
             required: ['type'],
             properties: {
-              type: { type: 'string', enum: ['click', 'move', 'drag', 'scroll', 'type', 'key'] },
+              type: { type: 'string', enum: ['click', 'move', 'drag', 'scroll', 'look', 'type', 'key'] },
               x: { type: 'integer' },
               y: { type: 'integer' },
+              dx: { type: 'integer', description: 'look: relative horizontal motion in pixels (negative is left).' },
+              dy: { type: 'integer', description: 'look: relative vertical motion in pixels (negative is up).' },
               button: { type: 'string', description: 'left (default), middle or right.' },
               from: { type: 'array', items: { type: 'integer' }, description: 'drag start [x, y].' },
               to: { type: 'array', items: { type: 'integer' }, description: 'drag end [x, y].' },

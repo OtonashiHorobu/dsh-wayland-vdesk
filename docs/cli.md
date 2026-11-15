@@ -111,6 +111,7 @@ dsh-vdesk click my-app 640 400 --button right
 dsh-vdesk click my-app 640 400 --double
 dsh-vdesk scroll my-app 640 400 down 5
 dsh-vdesk type  my-app "hello world"
+dsh-vdesk look  my-app 40 -10        # 相对移动指针（游戏视角）
 dsh-vdesk key   my-app ctrl+t
 dsh-vdesk key   my-app alt+F4
 ```
@@ -138,6 +139,7 @@ cat actions.json | dsh-vdesk input my-app --stdin
 | `drag` | `from:[x,y]` `to:[x,y]` `steps?` | 拖拽 |
 | `scroll` | `x,y` `direction` `amount?` | 滚轮 |
 | `type` | `text` `method?` | 输入文本；`method:"paste"` 走剪贴板（中文/长文本） |
+| `look` | `dx`,`dy` | 相对位移（鼠标视角/游戏）；绝对跳转对指针锁定客户端无效 |
 | `key` | `combo` | 组合键，如 `ctrl+shift+t`、`Return` |
 
 ## 窗口

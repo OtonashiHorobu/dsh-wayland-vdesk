@@ -53,6 +53,9 @@ export const caps = {
   get xdotool() {
     return which('xdotool')
   },
+  get wlrctl() {
+    return which('wlrctl')
+  },
   get wlCopy() {
     return which('wl-copy')
   },
@@ -91,6 +94,7 @@ export function describeCaps() {
     grim: caps.grim,
     wtype: caps.wtype,
     xdotool: caps.xdotool,
+    wlrctl: caps.wlrctl,
     wlCopy: caps.wlCopy,
     pactl: caps.pactl,
     parec: caps.parec,

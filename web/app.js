@@ -22,6 +22,8 @@ const els = {
   appsBtn: document.getElementById('apps-btn'),
   stop: document.getElementById('stop-btn'),
   popover: document.getElementById('popover'),
+  game: document.getElementById('game-btn'),
+  captureHint: document.getElementById('capture-hint'),
 }
 
 const state = {
@@ -118,6 +120,7 @@ async function loadSessions() {
 }
 
 function teardown() {
+  stopCapture()
   clearTimeout(state.reconnectTimer)
   if (state.rfb) {
     try {
@@ -415,6 +418,129 @@ async function stopDesktop() {
   if (next) await connect(next)
 }
 
+
+/* ------------------------------------------------------------ game mode */
+
+/*
+ * noVNC only sends absolute pointer coordinates, and wayvnc forwards them as
+ * absolute warps. A game that grabs the pointer (relative motion) cannot use
+ * those at all: warps are invisible to it, and when it recenters the cursor the
+ * next absolute event reads as a huge jump — the camera spins. So while capture
+ * is on we stop feeding RFB pointer events, accumulate movementX/Y ourselves and
+ * send them as relative `look` steps instead.
+ */
+const game = { on: false, dx: 0, dy: 0, timer: 0, lastX: 0, lastY: 0 }
+
+function sendInput(actions) {
+  if (!state.current || !actions.length) return
+  api(`/api/sessions/${encodeURIComponent(state.current.id)}/input`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ actions }),
+  }).catch(() => {})
+}
+
+function flushLook() {
+  if (!game.on) return
+  const dx = Math.round(game.dx)
+  const dy = Math.round(game.dy)
+  if (dx === 0 && dy === 0) return
+  game.dx -= dx
+  game.dy -= dy
+  sendInput([{ type: 'look', dx, dy }])
+}
+
+function buttonName(event) {
+  if (event.button === 2) return 'right'
+  if (event.button === 1) return 'middle'
+  return 'left'
+}
+
+function onCaptureMove(event) {
+  if (!game.on) return
+  event.preventDefault()
+  event.stopPropagation()
+  game.dx += event.movementX || 0
+  game.dy += event.movementY || 0
+}
+
+function onCaptureDown(event) {
+  if (!game.on) return
+  event.preventDefault()
+  event.stopPropagation()
+  sendInput([{ type: 'down', button: buttonName(event) }])
+}
+
+function onCaptureUp(event) {
+  if (!game.on) return
+  event.preventDefault()
+  event.stopPropagation()
+  sendInput([{ type: 'up', button: buttonName(event) }])
+}
+
+function onCaptureWheel(event) {
+  if (!game.on) return
+  event.preventDefault()
+  event.stopPropagation()
+  const direction = event.deltaY < 0 ? 'up' : 'down'
+  const amount = Math.min(5, Math.max(1, Math.round(Math.abs(event.deltaY) / 40) || 1))
+  sendInput([{ type: 'scroll', x: game.lastX, y: game.lastY, direction, amount }])
+}
+
+function onCaptureContext(event) {
+  if (!game.on) return
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+function onCaptureKey(event) {
+  if (!game.on || event.key !== 'Escape') return
+  event.preventDefault()
+  event.stopPropagation()
+  stopCapture()
+}
+
+function bindCaptureListeners(bind) {
+  const method = bind ? 'addEventListener' : 'removeEventListener'
+  document[method]('mousemove', onCaptureMove, true)
+  document[method]('mousedown', onCaptureDown, true)
+  document[method]('mouseup', onCaptureUp, true)
+  document[method]('wheel', onCaptureWheel, { capture: true, passive: false })
+  document[method]('contextmenu', onCaptureContext, true)
+  document[method]('keydown', onCaptureKey, true)
+}
+
+function startCapture() {
+  const canvas = els.screen.querySelector('canvas')
+  if (!canvas) return
+  game.on = true
+  game.dx = 0
+  game.dy = 0
+  game.lastX = Math.round(state.current?.width / 2 || 0)
+  game.lastY = Math.round(state.current?.height / 2 || 0)
+  bindCaptureListeners(true)
+  game.timer = setInterval(flushLook, 16)
+  els.game.classList.add('on')
+  els.captureHint.classList.remove('hidden')
+  canvas.requestPointerLock?.()
+}
+
+function stopCapture() {
+  if (!game.on) return
+  game.on = false
+  clearInterval(game.timer)
+  game.timer = 0
+  bindCaptureListeners(false)
+  els.game.classList.remove('on')
+  els.captureHint.classList.add('hidden')
+  if (document.pointerLockElement) document.exitPointerLock?.()
+}
+
+function toggleCapture() {
+  if (game.on) stopCapture()
+  else startCapture()
+}
+
 /* --------------------------------------------------------------- wiring */
 
 els.audio.addEventListener('click', toggleAudio)
@@ -449,6 +575,14 @@ els.appsBtn.addEventListener('click', (event) => {
   togglePopover()
 })
 
+els.game.addEventListener('click', () => {
+  toggleCapture()
+})
+
+document.addEventListener('pointerlockchange', () => {
+  if (!document.pointerLockElement && game.on) stopCapture()
+})
+
 els.stop.addEventListener('click', () => {
   stopDesktop().catch(() => setConn('停止失败', 'error'))
 })
@@ -463,9 +597,30 @@ els.fit.addEventListener('click', () => {
   if (state.rfb) state.rfb.scaleViewport = !state.rfb.scaleViewport
 })
 
+async function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    await document.exitFullscreen().catch(() => {})
+    return
+  }
+  // Inside a DSH panel this runs in an iframe: it only works when the host
+  // granted allow="fullscreen". Try the stage first, then the whole document.
+  for (const target of [els.stage, document.documentElement]) {
+    try {
+      await target.requestFullscreen()
+      return
+    } catch {
+      /* try the next target */
+    }
+  }
+  showHint('无法进入全屏：宿主页面没有授予 fullscreen 权限。')
+}
+
 els.full.addEventListener('click', () => {
-  if (document.fullscreenElement) document.exitFullscreen()
-  else els.stage.requestFullscreen?.()
+  toggleFullscreen()
+})
+
+document.addEventListener('fullscreenchange', () => {
+  els.full.classList.toggle('on', Boolean(document.fullscreenElement))
 })
 
 async function boot() {

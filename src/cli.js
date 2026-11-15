@@ -31,6 +31,7 @@ Desktops (KEY is a conversation key or a desktop id)
   type KEY TEXT
   key KEY COMBO              e.g. ctrl+t, alt+F4, Return
   scroll KEY X Y up|down [N]
+  look KEY DX DY             move the pointer relatively (mouse-look / games)
   windows KEY [--json]
   resize KEY 1600x900
   kill KEY | --all
@@ -269,6 +270,15 @@ async function main() {
     const direction = positional[4] ?? 'down'
     const amount = Number(positional[5] ?? 3)
     await client.input(res.session.id, [{ type: 'scroll', x, y, direction, amount }])
+    return
+  }
+
+  if (command === 'look') {
+    const res = await target(client, positional[1])
+    const dx = Number(positional[2] ?? 0)
+    const dy = Number(positional[3] ?? 0)
+    await client.input(res.session.id, [{ type: 'look', dx, dy }])
+    console.log(`looked ${dx},${dy}`)
     return
   }
 

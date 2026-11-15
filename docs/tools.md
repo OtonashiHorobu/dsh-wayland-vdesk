@@ -109,6 +109,7 @@
 | `drag` | `from`,`to` | `steps`、`delay`、`button` |
 | `scroll` | `x`,`y`,`direction` | `amount` |
 | `type` | `text` | `method`（`auto`/`wtype`/`paste`）、`delay` |
+| `look` | `dx`,`dy` | 相对位移，用于鼠标视角（游戏）。绝对跳转对锁定指针的客户端不可见。 |
 | `key` | `combo` | — |
 
 要点：
@@ -119,6 +120,9 @@
 - `key` 用 XKB keysym：`Return`、`Tab`、`Escape`、`BackSpace`、`Prior`/`Next`（PageUp/PageDown）、
   `Up/Down/Left/Right`，组合用 `ctrl+shift+t`。
 - 一次调用按顺序执行；任何一步失败会抛错，前面的步骤已经生效。
+- **游戏/鼠标视角用 `look`，不要用 `move`**：`move` 是绝对跳转，只会移动合成器光标；
+  抢了指针的客户端（指针锁定、相对模式）收不到任何位移，而它自己把光标拉回中心时，
+  下一次绝对事件会被读成一次巨大的跳变——表现就是视角乱转。
 
 ---
 

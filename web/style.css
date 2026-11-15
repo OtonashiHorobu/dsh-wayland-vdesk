@@ -295,7 +295,6 @@ body.embed #bar {
 body.embed .meta,
 body.embed #back-btn,
 body.embed #fit-btn,
-body.embed #full-btn,
 body.embed #status {
   display: none;
 }
@@ -493,4 +492,24 @@ body.overview .hint {
 .card-actions .btn.danger:hover {
   color: var(--dsw-alias-state-error-primary);
   border-color: var(--dsw-alias-border-l2);
+}
+
+.btn.on {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-selector);
+}
+
+.capture-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
 }

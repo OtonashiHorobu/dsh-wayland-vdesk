@@ -421,6 +421,21 @@ export class VDeskSession {
   async inputOne(action = {}) {
     const type = action.type
     switch (type) {
+      case 'look': {
+        // Relative motion. Absolute warps are invisible to a relative-motion
+        // client (a locked pointer or a game), so mouse-look has to go through
+        // the virtual-pointer protocol: wlrctl emits zwlr_virtual_pointer_v1.motion.
+        const dx = Math.round(Number(action.dx) || 0)
+        const dy = Math.round(Number(action.dy) || 0)
+        if (dx === 0 && dy === 0) return { type, ok: true, skipped: true }
+        if (caps.wlrctl) {
+          const res = await execFileP(caps.wlrctl, ['pointer', 'move', String(dx), String(dy)], { env: this.toolEnv() })
+          if (res.code !== 0) throw new Error(`wlrctl failed: ${res.stderr.trim() || res.code}`)
+          return { type, ok: true, dx, dy }
+        }
+        await this.swayCmd(`seat - cursor move ${dx} ${dy}`)
+        return { type, ok: true, dx, dy, fallback: true }
+      }
       case 'move': {
         await this.swayCmd(`seat - cursor set ${Math.round(action.x)} ${Math.round(action.y)}`)
         return { type, ok: true }

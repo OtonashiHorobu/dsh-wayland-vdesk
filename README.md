@@ -83,6 +83,7 @@ sudo apt install sway wayvnc grim wtype wl-clipboard novnc
 | `grim` | screenshots |
 | `wtype` | keyboard injection through the virtual-keyboard protocol |
 | `wl-clipboard` | paste-based input for CJK and long text (optional) |
+| `wlrctl` | relative pointer motion, needed for mouse-look and games (optional) |
 | noVNC | the browser-side RFB client (any `core/rfb.js` tree; `DSH_VDESK_NOVNC` overrides the path) |
 
 `ffmpeg` is used to downscale screenshots, `xdotool` is optional. Node ≥ 22.
@@ -119,6 +120,8 @@ sudo apt install sway wayvnc grim wtype wl-clipboard novnc
   - **程序** — programs and windows inside the desktop; ✕ kills a program or closes a window.
   - **停止** — tears the desktop down.
   - 🔊 — audio, muted by default; the slider next to it sets the gain.
+  - **鼠标** — capture the mouse for games: moves become relative `look` steps instead of absolute
+    warps (Esc releases). Absolute pointer events cannot drive a pointer-locked client.
 
 ### From an agent
 

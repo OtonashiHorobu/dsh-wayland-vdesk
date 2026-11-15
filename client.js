@@ -208,6 +208,7 @@ window.__ModuleLoader__.load({
           title: t('overview'),
           style: { ...styles.frame, border: '0', borderRadius: '0', flex: '1 1 auto' },
           referrerPolicy: 'no-referrer',
+          allow: 'clipboard-read; clipboard-write; fullscreen; pointer-lock',
           onLoad: push,
         }))
     }
@@ -333,7 +334,7 @@ window.__ModuleLoader__.load({
           title: t('view'),
           style: styles.frame,
           referrerPolicy: 'no-referrer',
-          allow: 'clipboard-read; clipboard-write; fullscreen',
+          allow: 'clipboard-read; clipboard-write; fullscreen; pointer-lock',
           onLoad: push,
         }))
     }
