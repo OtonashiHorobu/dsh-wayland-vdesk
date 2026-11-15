@@ -1,5 +1,5 @@
 /**
- * Host half of dsh-vdesk: agent tools plus the authenticated browser route that
+ * Host half of dsh-wayland-vdesk: agent tools plus the authenticated browser route that
  * the Client view uses to learn where this conversation's desktop lives.
  *
  * Everything heavy (compositor, VNC, audio capture, HTTP hub) runs in a separate
@@ -9,7 +9,7 @@
 import { HubClient, ensureDaemon } from './src/client.js'
 import { checkRequirements } from './src/config.js'
 
-export const name = 'dsh-vdesk'
+export const name = 'dsh-wayland-vdesk'
 
 export const inject = ['tools', 'attachments', 'connection']
 

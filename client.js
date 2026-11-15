@@ -1,10 +1,10 @@
-// dsh-vdesk — Client half. Served verbatim: a classic script that registers one
+// dsh-wayland-vdesk — Client half. Served verbatim: a classic script that registers one
 // lazy factory with the DSH module loader. It contributes three seats:
 //   - sidebar.panellist : the icon that opens the full-page overview
 //   - main              : the overview page (every desktop of every conversation)
 //   - conversation.view : the live view of this conversation's desktop
 window.__ModuleLoader__.load({
-  id: 'dsh-vdesk',
+  id: 'dsh-wayland-vdesk',
   factory(require) {
     const React = require('react')
     const h = React.createElement

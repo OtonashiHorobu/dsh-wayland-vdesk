@@ -1,7 +1,7 @@
 {
-  "name": "dsh-vdesk",
+  "name": "dsh-wayland-vdesk",
   "version": "0.1.0",
-  "description": "Per-conversation off-screen Wayland virtual desktops for DeepSeek Harness: run, screenshot, drive and watch GUI programs without touching the real desktop.",
+  "description": "Per-conversation off-screen Wayland virtual desktops for DeepSeek Harness: run, screenshot, drive and watch GUI programs without touching your real desktop.",
   "license": "MIT",
   "type": "module",
   "keywords": [
@@ -11,9 +11,12 @@
     "wayland",
     "virtual-desktop",
     "sway",
-    "vnc",
+    "wayvnc",
+    "novnc",
+    "headless",
     "computer-use",
-    "ui-debugging"
+    "ui-debugging",
+    "ai-agent"
   ],
   "icon": "./icon.svg",
   "exports": {
@@ -36,6 +39,7 @@
     "docs",
     "icon.svg",
     "README.md",
+    "README.zh.md",
     "LICENSE"
   ],
   "engines": {
@@ -55,8 +59,19 @@
       "platform": "web",
       "immediately": true,
       "inject": [
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-layout"
       ]
     }
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OtonashiHorobu/dsh-wayland-vdesk.git"
+  },
+  "homepage": "https://github.com/OtonashiHorobu/dsh-wayland-vdesk#readme",
+  "bugs": {
+    "url": "https://github.com/OtonashiHorobu/dsh-wayland-vdesk/issues"
+  },
+  "author": "Mesu Devastator"
 }
