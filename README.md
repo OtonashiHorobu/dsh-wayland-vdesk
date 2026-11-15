@@ -1,161 +1,230 @@
-# dsh-vdesk
+# dsh-wayland-vdesk
 
-给 **DeepSeek Harness** 的每个对话一个**离屏虚拟桌面**：GUI 程序跑在独立的 headless Wayland（sway + Xwayland）里，
-不会出现在你真实的 Hyprland 桌面上；agent 可以启动程序、截图、点击、输入，你在 DSH 网页里能实时看到并直接操作，
-声音经 WebUI 转发且默认静音。
+**A private Wayland desktop for every DeepSeek Harness conversation.** Run, screenshot, drive and watch GUI
+programs off-screen — the windows never touch your real compositor.
 
-```
-┌────────────────────────────── DSH Web (127.0.0.1:3080) ──────────────────────────────┐
-│  对话视图「虚拟桌面」  ──iframe──▶  hub 页面 (127.0.0.1:7317)                          │
-│                                        │  noVNC 画面 + WebAudio 声音                    │
-└────────────────────────────────────────┼──────────────────────────────────────────────┘
-                                         │ RFB / PCM
-                              ┌──────────▼──────────┐
-                              │  dsh-vdesk daemon   │  每个对话一个会话
-                              │  sway (headless)    │  ┌────────────────────────────┐
-                              │  wayvnc (127.0.0.1) │──│ 你的程序 (Wayland / X11)    │
-                              │  null sink + parec  │  └────────────────────────────┘
-                              └─────────────────────┘
-```
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
+[![Platform: Linux](https://img.shields.io/badge/platform-Linux-0f9d58.svg)](#requirements)
+[![DSH](https://img.shields.io/badge/DSH-0.2.x-4f8cff.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522-339933.svg)](#requirements)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-## 它解决什么
+English · [中文](README.zh.md)
 
-- **隔离**：程序渲染在你自己的 sway 实例里，`hyprctl clients` 永远看不到它们；不会抢焦点、不会遮挡你的窗口。
-- **可指定大小**：`1280x800`、`1920x1080`、竖屏 `1080x1920` 都行，运行中还能 `vdesk_resize`。
-- **双向可见**：agent 用 `vdesk_shot` 拿 PNG 图片；你用人眼看 live view，还能用鼠标键盘直接操作。
-- **任意程序**：`vdesk_run` 注入 `DISPLAY` / `WAYLAND_DISPLAY` / `XDG_RUNTIME_DIR` / `PULSE_SINK`，
-  GTK、Qt、Electron、Chromium、Wine、游戏引擎都一样。
-- **声音**：每个桌面一个独立 null sink，默认静音；WebUI 里点一下才出声，音量滑杆可调。
-- **每对话独立**：会话按 DSH 的 conversation id 绑定，两个对话互不干扰。
+![The live viewer driving a web app inside an off-screen desktop](docs/images/viewer.png)
 
-## 安装
-
-### 1. 系统依赖（Arch）
-
-```bash
-sudo pacman -S sway wayvnc grim wtype wl-clipboard
-```
-
-| 程序 | 用途 |
-| --- | --- |
-| `sway` | headless 合成器（Wayland + Xwayland） |
-| `wayvnc` | 把桌面画面/输入经 RFB 暴露到 127.0.0.1 |
-| `grim` | 截图 |
-| `wtype` | 键盘注入（合成器级虚拟键盘，不碰 `/dev/uinput`） |
-| `wl-clipboard` | 长文本/中文的粘贴式输入（可选） |
-
-noVNC 只用于浏览器端，Arch 包 `novnc` 会装到 `/usr/share/webapps/novnc`；
-也可以用 `DSH_VDESK_NOVNC` 指向别的目录。
-
-### 2. 安装插件
-
-```bash
-# 从本地目录
-dsh plugin --profile web add /path/to/dsh-vdesk
-# 或者从 GitHub（发布后）
-dsh plugin --profile web add gh:OtonashiHorobu/dsh-vdesk
-```
-
-插件由两部分组成：
-
-- **Host 半** `index.js`：注册 7 个 agent 工具 + 1 条鉴权路由；
-- **Client 半** `client.js`：在对话视图里加一个「虚拟桌面」页签。
-
-两者都不需要构建步骤。装好后刷新网页即可看到页签。
-
-### 3. 唯一后台进程
-
-所有桌面由一个常驻守护进程提供（工具、CLI、网页共用同一份状态）：
-
-```bash
-dsh-vdesk start      # 后台拉起 hub
-dsh-vdesk status     # 看 caps / 端口 / 桌面列表
-```
-
-端口默认 `7317`（`DSH_VDESK_PORT` 可改），运行时文件在 `$XDG_RUNTIME_DIR/dsh-vdesk/`。
-
-## 快速使用
-
-### agent 侧（工具直调）
+A DeepSeek Harness bundle that gives each conversation its own headless **sway** compositor (Wayland + Xwayland),
+streams it into the Web UI over VNC, and exposes it to the agent as ordinary tools:
 
 ```text
-vdesk_create()                                  → 打开本对话的桌面
-vdesk_run({command: "gtk4-demo"})               → 里面跑一个 GUI 程序
-vdesk_shot()                                    → 截图，图片直接进上下文
-vdesk_input({actions:[{type:"click",x:120,y:80}]}) → 点一下
-vdesk_input({actions:[{type:"type",text:"你好"}]})  → 打字
-vdesk_apps()                                    → 桌面里有哪些程序/窗口
-vdesk_kill({pid: 1234})                         → 结束某个程序
+vdesk_create()                                   → open this conversation's desktop
+vdesk_run({command: "npm run dev"})              → start a program inside it
+vdesk_shot()                                     → PNG straight into the model context
+vdesk_input({actions: [{type: "click", x, y}]})  → click / drag / type / press keys
+vdesk_apps() / vdesk_kill({pid})                 → see and stop what is running
+vdesk_resize({width, height})                    → change the resolution live
 ```
 
-完整工具参数见 [docs/tools.md](docs/tools.md)。
+## Why
 
-### 左侧「虚拟桌面」总览
+An agent that can look at pixels is a much better UI engineer — but pointing a real screen-driver at your desktop is
+unpleasant: windows steal focus, pop up over your work, and global input injection (`ydotool`, `/dev/uinput`) hits
+whatever session is focused, including yours.
 
-侧边栏点 **虚拟桌面** 打开全屏总览：每个对话一张卡片，带实时缩略图、尺寸、程序数，
-可以直接打开、在窗口打开或停止。同一页还有「全部停止」。
+`dsh-wayland-vdesk` gives every conversation a **private compositor** instead:
 
-### 停止桌面 / 管理里面的程序
+- **Off-screen by construction.** Its own `XDG_RUNTIME_DIR`, its own `WAYLAND_DISPLAY`, its own Xwayland display.
+  `hyprctl clients` never shows a thing.
+- **Wayland native *and* X11.** sway's Xwayland runs side by side, so GTK 4, Qt, Electron and Wine all work.
+- **Safe input.** Keyboard goes through the compositor's virtual-keyboard protocol, the pointer through sway's own
+  seat — never through `/dev/uinput`. The two never meet.
+- **Live and two-way.** You watch the same framebuffer the agent screenshots, and you can take over with your own
+  mouse and keyboard at any moment.
 
-桌面页右上角：
+## Screenshots
 
-- **程序** —— 列出这个桌面启动过的程序和它们的窗口，点 ✕ 结束某个程序或关掉某个窗口；
-- **停止** —— 结束整个桌面（里面的程序全部退出）。
+| Overview of every conversation's desktop | Embedded in a DSH conversation |
+| --- | --- |
+| ![Overview](docs/images/overview.png) | ![Embedded](docs/images/dsh-embedded.png) |
 
-agent 侧对应 `vdesk_apps` 与 `vdesk_kill`。
+The overview lives in the sidebar (live thumbnails, open/stop, stop-all). The per-conversation tab shows one
+desktop full-size; the **程序** popover lists the programs and windows inside it and lets you stop them one by one.
 
-### 你（WebUI）
+## Features
 
-对话顶部页签切到 **虚拟桌面**：
+| | |
+| --- | --- |
+| **Per-conversation isolation** | One sway instance per DSH session, keyed by conversation id. |
+| **Any resolution** | Pick it at creation, change it any time (`vdesk_resize`, 320–7680 px). |
+| **Wayland + X11** | Xwayland is started inside the desktop; both are captured and injected the same way. |
+| **Live view** | noVNC over WebSocket, served from one loopback port, embedded in the DSH Web UI. |
+| **Screenshots to the model** | `vdesk_shot` stores a PNG in DSH's attachment store and returns an image block. |
+| **Audio** | Each desktop gets its own null sink; PCM is streamed to the page and played through a `GainNode`. Muted until you click 🔊. |
+| **Program control** | List and kill the programs and windows a desktop owns — from the UI or from tools. |
+| **CLI** | The same daemon is reachable from a shell: `dsh-vdesk run`, `shot`, `env`, `exec`, … |
+| **GPU when available** | sway renders through the DRM render node; falls back to software automatically. |
 
-- 画面上直接鼠标/键盘操作，等同坐在那台机器前；
-- 右上角 🔇 **声音**：默认静音，点一下开启，旁边滑杆调音量；
-- **在窗口打开**：把同一个桌面丢到独立浏览器窗口，适合双屏；
-- **重载**：重连画面。
+## Requirements
 
-### shell 侧（CLI）
+Linux with a Wayland or X11 session and PipeWire/PulseAudio.
+
+```bash
+# Arch
+sudo pacman -S sway wayvnc grim wtype wl-clipboard novnc
+
+# Debian/Ubuntu (noVNC is packaged as novnc + python3-websockify)
+sudo apt install sway wayvnc grim wtype wl-clipboard novnc
+```
+
+| Program | Why |
+| --- | --- |
+| `sway` | the headless compositor (Wayland + Xwayland) |
+| `wayvnc` | exposes the framebuffer/input over RFB on loopback |
+| `grim` | screenshots |
+| `wtype` | keyboard injection through the virtual-keyboard protocol |
+| `wl-clipboard` | paste-based input for CJK and long text (optional) |
+| noVNC | the browser-side RFB client (any `core/rfb.js` tree; `DSH_VDESK_NOVNC` overrides the path) |
+
+`ffmpeg` is used to downscale screenshots, `xdotool` is optional. Node ≥ 22.
+
+## Install
+
+1. **Install the bundle.** Open **Settings → Plugins → Install bundle** and point it at this repository, or from a
+   checkout:
+
+   ```bash
+   dsh plugin --profile web add /path/to/dsh-wayland-vdesk
+   ```
+
+   then add `dsh-wayland-vdesk` to `dsh.profile.bundles` in the profile's `package.json`. The Plugin manager does both
+   steps for you, so prefer it.
+
+2. **Reload the DSH Web UI.** A **虚拟桌面** entry appears in the sidebar, and every conversation gains a
+   **虚拟桌面** view tab.
+
+3. **Check the daemon:**
+
+   ```bash
+   dsh-vdesk status
+   ```
+
+   It reports the hub port, which capabilities were found, and the current desktops.
+
+## Using it
+
+### From the Web UI
+
+- **Sidebar → 虚拟桌面** — the overview: every desktop with a live thumbnail, `打开` / `停止`, and `全部停止`.
+- **Conversation → 虚拟桌面 tab** — this conversation's desktop, full size.
+  - **程序** — programs and windows inside the desktop; ✕ kills a program or closes a window.
+  - **停止** — tears the desktop down.
+  - 🔊 — audio, muted by default; the slider next to it sets the gain.
+
+### From an agent
+
+```text
+vdesk_create({width: 1440, height: 900})
+vdesk_run({command: "python -m http.server 5173", wait: false})
+vdesk_run({command: "chromium --app=http://localhost:5173"})
+vdesk_run({command: "sleep 4", wait: true})
+vdesk_shot()
+vdesk_input({actions: [{type: "click", x: 320, y: 180}]})
+vdesk_input({actions: [{type: "type", text: "hello"}]})
+vdesk_shot()
+```
+
+Full parameter reference: [docs/tools.md](docs/tools.md).
+
+### From a shell
 
 ```bash
 dsh-vdesk create --conv my-app --size 1440x900
-dsh-vdesk run my-app -- ./target/debug/my-app --flag
+dsh-vdesk run  my-app -- cargo run
 dsh-vdesk shot my-app --out /tmp/shot.png
-dsh-vdesk env my-app           # 打印 export 行，可 eval 注入 shell
-dsh-vdesk click my-app 640 400
-dsh-vdesk type my-app "hello"
+dsh-vdesk env  my-app            # export lines you can eval into your shell
+dsh-vdesk click my-app 640 400 && dsh-vdesk type my-app "hello"
 ```
 
-完整命令见 [docs/cli.md](docs/cli.md)。
+Full command reference: [docs/cli.md](docs/cli.md).
 
-## 设计要点
+## How it works
 
-- **每对话一个 sway**：私有 `XDG_RUNTIME_DIR`，私有 `WAYLAND_DISPLAY`（`wayland-1`），Xwayland 自动分配 `:N`。
-- **输入不走 uinput**：键盘用合成器级虚拟键盘（`wtype`），指针用 sway 自己的
-  `seat - cursor set/press/release`，WebUI 的输入走 wayvnc 的虚拟设备。
-  因此**永远不会误触你真实桌面**（`ydotool`/`dotool` 那种全局注入在这里是禁止项）。
-- **音频**：`pactl load-module module-null-sink` 给每个桌面一个 sink，
-  程序的 `PULSE_SINK` 指向它；浏览器连上来时才开始 `parec` 采 monitor，
-  断线 8 秒后自动停，避免常驻空转。
-- **单端口**：hub 一个端口同时提供页面、静态 noVNC、`/vnc/<id>` 代理、`/audio/<id>` 音频流，
-  不需要 websockify，也不需要额外端口。
-- **鉴权**：hub 只监听 `127.0.0.1`，所有 URL 带一次性 token；API 与 WebSocket 都校验。
+```text
+DSH Web (127.0.0.1:3080)
+ └── conversation view / overview panel
+        │ iframe
+        ▼
+   dsh-vdesk hub (127.0.0.1:7317, token-guarded)
+        ├── /            viewer page        ├── /overview   overview page
+        ├── /vnc/<id>    RFB over WebSocket ├── /audio/<id> PCM over WebSocket
+        └── /api/*       JSON API
+        │
+        ▼
+   dsh-vdesk daemon (one long-lived Node process)
+        └── session s-xxxx  (one per conversation)
+              ├── sway  (WLR_BACKENDS=headless, private XDG_RUNTIME_DIR)
+              │     ├── wayland-1
+              │     └── Xwayland :N
+              ├── wayvnc → 127.0.0.1:<random port>
+              ├── null sink dsh_vdesk_<id> + parec (on demand)
+              └── the programs you started
+```
 
-更多细节见 [docs/architecture.md](docs/architecture.md)。
+The daemon is deliberately **outside** the DSH process: the CLI and the tools share one state, and a DSH restart or a
+plugin reload cannot orphan a compositor. Details and the reasoning behind each choice: [docs/architecture.md](docs/architecture.md).
 
-## 限制与注意
+## Security model
 
-- **仅 Linux**（Wayland 合成器 + PipeWire/PulseAudio）。Windows/macOS 不支持。
-- 显示隔离**不是安全沙箱**：同一 uid，程序仍能读你的文件。跑不可信程序请用容器/虚拟机。
-- 输入法（IME）不可用：中文请用 `method:"paste"`（走 `wl-clipboard`），或直接 `type` 拉丁字符。
-- 如果 DSH 用 HTTPS 提供服务，浏览器会拦截 `http://` 的 iframe（mixed content）。本地 `http://127.0.0.1:3080` 正常。
-- 无 GPU 时会退到软件渲染；NVIDIA/AMD/Intel 上实测走 EGL（`/dev/dri/renderD*`）。
+- The hub binds **127.0.0.1** only, and every URL carries a per-daemon random token; the API and both WebSockets
+  reject requests without it. Cross-origin pages cannot read the iframe URL, so they cannot obtain the token.
+- Input never leaves the desktop: no `/dev/uinput`, no synthetic events into your session.
+- This is **display isolation, not a sandbox** — programs run as you, with your files. Run untrusted code in a
+  container or VM.
 
-## 卸载
+## Limitations
+
+- **Linux only** (Wayland compositor + PipeWire/PulseAudio).
+- **No IME inside the desktop.** Use `method: "paste"` for CJK or long text; `wtype` types Latin text directly.
+- If DSH is served over **HTTPS**, browsers block the `http://` viewer iframe as mixed content.
+- One noVNC view per desktop is fine; many simultaneous viewers are not a design goal.
+- Software rendering is used when the compositor cannot get a DRM render node.
+
+## FAQ
+
+**Does this show anything on my real desktop?** No. The desktop is a separate headless sway instance with its own
+runtime dir; nothing is ever mapped onto your session.
+
+**Can the agent and I use it at the same time?** Yes. The agent's `vdesk_input` goes through the compositor's seat and
+your browser's input goes through wayvnc's virtual devices — both land in the same desktop.
+
+**Where does audio go?** Into a per-desktop null sink. Nothing reaches your speakers unless you unmute the viewer;
+the gain is applied in the browser, so your system volume is untouched.
+
+**How do I stop everything?**
 
 ```bash
-dsh-vdesk stop-hub
-dsh plugin --profile web remove dsh-vdesk
+dsh-vdesk stop-hub      # daemon + all desktops
+```
+
+## Repository layout
+
+```
+index.js              Host half: tools + authenticated routes      web/          viewer + overview pages
+client.js             Client half: sidebar entry, panel, view tab   src/          daemon, sessions, audio, hub, CLI
+cordis.patch.yml      bundle patch (one row)                        docs/         tool, CLI, architecture docs
+locale/{en,zh}.json   Plugin Manager metadata                       docs/images/  screenshots
+```
+
+## Contributing
+
+Issues and pull requests are welcome. The repository uses [Conventional Commits](https://www.conventionalcommits.org/)
+and signed commits.
+
+```bash
+node --check index.js && node --check client.js && node --check src/cli.js
+dsh-vdesk status
 ```
 
 ## License
 
-MIT
+[MIT](LICENSE)
