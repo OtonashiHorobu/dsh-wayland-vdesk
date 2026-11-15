@@ -3,7 +3,7 @@
 **给每个 DeepSeek Harness 对话一块私有的 Wayland 桌面。** 在离屏的合成器里运行、截图、操作和观看 GUI 程序——
 窗口永远碰不到你真实的桌面。
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#许可证)
 [![Platform: Linux](https://img.shields.io/badge/platform-Linux-0f9d58.svg)](#环境要求)
 [![DSH](https://img.shields.io/badge/DSH-0.2.x-4f8cff.svg)](https://github.com/deepseek-ai/deepseek-harness)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-339933.svg)](#环境要求)
